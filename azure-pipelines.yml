@@ -1,0 +1,74 @@
+trigger: none
+pr: none
+
+parameters:
+  - name: TESTS_TYPE
+    displayName: "Select type of tests"
+    type: string
+    default: "test/poco/"
+    values:
+      - test/poco/
+      - test/attachments/
+      - test/unit-many/
+      - test/unit/
+      - test/
+  - name: TESTS_SUCCESS
+    displayName: "Decide if tests would fail or not"
+    type: string
+    default: "always"
+    values:
+      - random
+      - always
+      - broken
+      - never
+  - name: TESTS_BROWSER
+    displayName: "Tests browser. Leave blank if not required"
+    type: string
+    default: "vivaldi"
+  - name: TESTS_SYSTEM_UNDER_TEST
+    displayName: "Test bed to run tests on."
+    type: string
+    default: "https://demo.testops.cloud"
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+  - name: ALLURE_ENDPOINT
+    value: "https://testing.qameta.in"
+  - name: ALLURE_PROJECT_ID
+    value: "276"
+  - name: TESTS_TYPE_RESOLVED
+    value: $[ coalesce(variables['TESTS_TYPE'], '${{ parameters.TESTS_TYPE }}') ]
+  - name: TESTS_SUCCESS_RESOLVED
+    value: $[ coalesce(variables['TESTS_SUCCESS'], '${{ parameters.TESTS_SUCCESS }}') ]
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "21.x"
+    displayName: "Install Node.js"
+
+  - script: npm ci
+    displayName: "Install dependencies"
+
+  - script: |
+      wget https://github.com/allure-framework/allurectl/releases/latest/download/allurectl_linux_amd64 \
+        -O ./allurectl
+      chmod +x ./allurectl
+    displayName: "Install allurectl"
+
+  - script: |
+      ./allurectl watch -- npx playwright test ${TESTS_TYPE} || true
+    displayName: "Run Playwright tests and upload to Allure TestOps"
+    env:
+      ALLURE_ENDPOINT: $(ALLURE_ENDPOINT)
+      ALLURE_TOKEN: $(ALLURE_TOKEN)
+      ALLURE_PROJECT_ID: 276
+      ALLURE_RESULTS: "allure-results"
+      TESTS_TYPE: "$(TESTS_TYPE_RESOLVED)"
+      TESTS_SUCCESS: "$(TESTS_SUCCESS_RESOLVED)"
+      TESTS_BROWSER: "${{ parameters.TESTS_BROWSER }}"
+      TESTS_SYSTEM_UNDER_TEST: "${{ parameters.TESTS_SYSTEM_UNDER_TEST }}"
+      ALLURE_LAUNCH_NAME: "$(TESTS_TYPE_RESOLVED) Azure DevOps Playwright"
+      ALLURE_LAUNCH_TAGS: "$(TESTS_TYPE_RESOLVED)"
